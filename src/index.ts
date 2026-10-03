@@ -10,11 +10,19 @@ const USAGE = `Usage: gitwhy <file>:<line> [--dry-run]
 Explains why lines of code exist, using their git history.
 
 Options:
-  --dry-run   print what would be sent to Claude, and stop
-  -h, --help  show this help`;
+  --dry-run   print what would be sent to Gemini, and stop
+  -h, --help  show this help
+
+Needs a free Gemini API key in GEMINI_API_KEY: https://aistudio.google.com/apikey`;
 
 const CONTEXT_LINES = 15; // lines of code shown above and below the target
 const MAX_COMMITS = 10; // how far back the history goes
+const MODEL = "gemini-3.8-flash";
+const SYSTEM = `You explain why code exists, using its git history.
+Start with a one-sentence answer. Then give a short timeline of the changes that matter:
+short commit SHA, author, date, and what changed and why.
+Only use what the history and code show. If the history doesn't explain the reason, say so plainly instead of guessing.
+Write plain text for a terminal: no markdown headings or bold.`;
 
 function fail(message: string): never {
   console.error(message);
@@ -92,7 +100,7 @@ const code = lines
   })
   .join("\n");
 
-// 6. One prompt with everything Claude needs.
+// 6. One prompt with everything Gemini needs.
 const prompt = `Why do the lines marked ">" in ${file} (lines ${start}-${end}) exist?
 
 <code>
@@ -112,5 +120,45 @@ if (args.values["dry-run"]) {
   process.exit(0);
 }
 
-// Milestone 3 goes here: send the prompt to Claude.
-fail("Calling Claude isn't built yet. Use --dry-run.");
+// 7. Ask Gemini, and print the answer as it's written.
+const key = process.env.GEMINI_API_KEY;
+if (!key) fail("Set GEMINI_API_KEY first. Get a free key at https://aistudio.google.com/apikey");
+
+process.stderr.write("Reading the history...\n");
+let res;
+try {
+  res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`, {
+    method: "POST",
+    // The key goes in a header, not the URL, so it can't leak into logs or error messages.
+    headers: { "content-type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { thinkingConfig: { thinkingLevel: "low" } },
+    }),
+  });
+} catch {
+  fail("Couldn't reach Gemini. Check your internet connection.");
+}
+if (!res.ok) {
+  const body = await res.json().catch(() => null);
+  fail(`Gemini error (${res.status}): ${body?.error?.message ?? res.statusText}`);
+}
+
+// The answer arrives as server-sent events: lines like `data: {...json...}`.
+let buffer = "";
+let finish = "";
+for await (const text of res.body!.pipeThrough(new TextDecoderStream())) {
+  buffer += text;
+  const lines = buffer.split("\n");
+  buffer = lines.pop()!; // the last piece may be cut off mid-line, so keep it for the next round
+  for (const line of lines) {
+    if (!line.startsWith("data: ")) continue;
+    const event = JSON.parse(line.slice(6));
+    const candidate = event.candidates?.[0];
+    for (const part of candidate?.content?.parts ?? []) process.stdout.write(part.text ?? "");
+    finish = candidate?.finishReason ?? event.promptFeedback?.blockReason ?? finish;
+  }
+}
+process.stdout.write("\n");
+if (finish !== "STOP") fail(`Gemini stopped early (${finish || "no reason given"}).`);

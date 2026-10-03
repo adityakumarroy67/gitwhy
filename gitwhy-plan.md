@@ -2,6 +2,9 @@
 
 > Ask why a line of code exists. gitwhy reads the line's git history and explains it in plain English.
 
+**Progress:** Milestones 1, 2 and 3 done (tested on expressjs/express: answers in 4–8 s). Next: Milestone 4 (README, publish).
+**Changed from the original plan:** uses Google's **free Gemini API** instead of paid Claude, so it costs nothing for you or your users. Zero dependencies (Node's built-in `fetch`).
+
 ```
 $ gitwhy src/auth.ts:42
 
@@ -26,25 +29,27 @@ One command, `gitwhy <file>:<line>` or `gitwhy <file>:<start>-<end>`, does the f
 | 1 | Find who last changed those lines | `git blame -L` |
 | 2 | Get every past change to those exact lines, with commit messages | `git log -L` |
 | 3 | Read the surrounding code (±15 lines) | Node `fs` |
-| 4 | Send all of it to Claude and stream the explanation to the terminal | Anthropic SDK |
+| 4 | Send all of it to Gemini and stream the explanation to the terminal | Node `fetch` |
 
 ## 3. Tech stack
 
 - **Node.js and TypeScript.** You publish to npm, so anyone can run `npx gitwhy file:line` with no install.
   - To **develop** it you need Node **22.18+**, which runs `.ts` test files directly. Node 24 is ideal.
   - The **published** CLI runs on Node 20+.
-- **`@anthropic-ai/sdk`** to call Claude (model `claude-opus-5-5`).
+- **Google Gemini API** (model `gemini-3.8-flash`), called with Node's built-in `fetch`. No SDK.
 - **Git** must be installed. That's the only system requirement.
-- No other dependencies. Argument parsing and git calls use Node's built-in modules.
+- Zero dependencies. Argument parsing (`parseArgs`), git calls and HTTP all use Node's built-in modules.
 
-**What it costs to run:** each run is one Claude API call. At Opus 5.5 prices ($4 per million input tokens, $20 per million output tokens), that should be roughly a few cents per run. Check the real number in the Anthropic Console after your first few runs.
+**What it costs to run:** nothing. Each user makes their own free key at https://aistudio.google.com/apikey (Google account, no credit card). The free tier is rate-limited (around 10 requests a minute, hundreds a day as of Sep 2026). Downside: on the free tier Google may use what's sent to improve its products, so the README must say so. Each run sends ~2–15 KB.
+
+**Why not the others (checked Oct 2026):** Claude API costs money. Ollama is free but needs a ~3.5 GB download, too heavy for users. Groq's free tier allows only 6,000 tokens a minute, too small. GitHub Models shut down in July 2026.
 
 ## 4. Folder structure
 
 ```
 gitwhy/
 ├─ src/
-│  ├─ index.ts        # the CLI: parse arg → run git → ask Claude → print
+│  ├─ index.ts        # the CLI: parse arg → run git → ask Gemini → print
 │  ├─ parse.ts        # turns "src/a.ts:10-20" into { file, start, end }
 │  └─ parse.test.ts   # tiny test for the parser
 ├─ package.json
@@ -59,8 +64,8 @@ gitwhy/
 Build it in this order so each step can be checked before the next one. Don't spend API money until the git part works.
 
 1. **Milestone 1: the parser.** `parse.ts` plus its test passes (`npm test`).
-2. **Milestone 2: the git part, no AI yet.** `gitwhy file:line --dry-run` prints the exact text that *would* be sent to Claude. Check it on a real repo. Keep this flag afterwards, since it's useful for debugging and lets users see what leaves their machine.
-3. **Milestone 3: Claude.** Send that text to Claude and stream the answer.
+2. **Milestone 2: the git part, no AI yet.** `gitwhy file:line --dry-run` prints the exact text that *would* be sent to Gemini. Check it on a real repo. Keep this flag afterwards, since it's useful for debugging and lets users see what leaves their machine.
+3. **Milestone 3: Gemini.** Send that text to Gemini and stream the answer.
 4. **Milestone 4: polish.** Friendly errors, README, GIF, publish.
 
 ---
@@ -73,7 +78,6 @@ Build it in this order so each step can be checked before the next one. Don't sp
 mkdir gitwhy && cd gitwhy
 git init
 npm init -y
-npm install @anthropic-ai/sdk
 npm install -D typescript @types/node
 ```
 
@@ -103,7 +107,7 @@ Replace the generated file with this. The important parts are `bin`, which makes
     "test": "node --test",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["git", "blame", "cli", "ai", "claude"],
+  "keywords": ["git", "blame", "cli", "ai", "gemini"],
   "engines": { "node": ">=20" },
   "license": "MIT"
 }
@@ -113,7 +117,7 @@ Keep the `dependencies` and `devDependencies` blocks that `npm install` added.
 
 ### Step 3: `tsconfig.json`
 
-Tested with TypeScript 7.0. You can import files as `./parse.ts`, and the build rewrites the imports to `./parse.js`.
+Tested with TypeScript 7.0. You can import files as `./parse.ts`, and the build rewrites the imports to `./parse.js`. TypeScript 7 no longer loads Node's types by default, so `"types": ["node"]` is required.
 
 ```json
 {
@@ -123,6 +127,7 @@ Tested with TypeScript 7.0. You can import files as `./parse.ts`, and the build 
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true
@@ -173,13 +178,12 @@ What it needs to do, in order:
    - Print usage if the target is missing or `--help` is given.
    - Support `--dry-run`.
    - Run the target through `parseTarget`. If it throws, print the message and exit.
-2. **Refuse files with uncommitted changes** (see the warning below).
-3. **Gather the history:**
-   - `git blame -L <start>,<end> -- <file>`
-   - `git log -L<start>,<end>:<file> -n 10 --format=...` (the 10 most recent changes; pick a format that includes the SHA, author, date and full message)
-4. **Read the code around the lines.** Mark the target lines with `>` so Claude knows which ones you mean.
-5. **Build one prompt** from the file name, the code, the blame output and the history. With `--dry-run`, print it and stop.
-6. **Call Claude with streaming,** so text appears as it's written.
+2. **Run `git blame -L <start>,<end> -- <file>` first.** Besides finding who last changed the lines, it catches "not a git repository", "never committed" and "line past end of file" with clear git errors. (If the dirty check runs first, outside a repo it wrongly says "uncommitted changes".)
+3. **Refuse files with uncommitted changes** (see the warning below).
+4. **Get the history:** `git log -L<start>,<end>:<file> -n 10 --format=...` (the 10 most recent changes; pick a format that includes the SHA, author, date and full message).
+5. **Read the code around the lines.** Mark the target lines with `>` so Gemini knows which ones you mean.
+6. **Build one prompt** from the file name, the code, the blame output and the history. With `--dry-run`, print it and stop.
+7. **Call Gemini with streaming,** so text appears as it's written.
 7. **Handle errors clearly.** See the table below.
 
 #### ⚠️ Gotcha: uncommitted changes break the line numbers (verified)
@@ -228,43 +232,23 @@ The errors this covers for free (all tested):
 | File never committed | `fatal: There is no path X in the commit` |
 | Line past end of file | `fatal: file X has only 3 lines` |
 
-#### Calling Claude
+#### Calling Gemini
 
-This snippet compiles against `@anthropic-ai/sdk` 0.131:
+No SDK, just `fetch` (see the end of `src/index.ts`):
 
-```ts
-import Anthropic from "@anthropic-ai/sdk";
-
-const SYSTEM = `You explain why code exists, using its git history.
-Start with a one-sentence answer. Then give a short timeline of the changes that matter:
-short commit SHA, author, date, and what changed and why.
-Only use what the history and code show. If the history doesn't explain the reason, say so plainly instead of guessing.`;
-
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY from the environment
-process.stderr.write("Reading the history...\n"); // Claude thinks before writing, so show something
-
-const stream = client.beta.messages.stream({
-  model: "claude-opus-5-5",
-  max_tokens: 16000,
-  betas: ["server-side-fallback-2026-07-01"],
-  fallbacks: "default", // if Opus declines (rare), the API retries on a fallback model automatically
-  system: SYSTEM,
-  messages: [{ role: "user", content: prompt }],
-});
-stream.on("text", (text) => process.stdout.write(text));
-const msg = await stream.finalMessage();
-if (msg.stop_reason === "refusal") console.error("\nClaude declined to explain this one.");
-process.stdout.write("\n");
-```
-
-Catch a missing or wrong API key: `err instanceof Anthropic.AuthenticationError` → print "Set ANTHROPIC_API_KEY. Get one at https://console.anthropic.com".
+- `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse`
+- The key goes in the `x-goog-api-key` header, **not the URL**, so it can't leak into logs or error messages.
+- Body: `systemInstruction`, `contents`, and `generationConfig.thinkingConfig.thinkingLevel: "low"` (thinking is on by default, and "low" makes it answer faster).
+- The answer streams back as server-sent events: lines like `data: {...}`. Print each `candidates[0].content.parts[].text` as it arrives. A chunk can end mid-line, so keep the unfinished piece for the next round.
+- `finishReason` other than `STOP` (e.g. `SAFETY`) → say Gemini stopped early.
+- No `GEMINI_API_KEY` → "Set GEMINI_API_KEY first. Get a free key at https://aistudio.google.com/apikey". A bad key → Google's own message ("API key not valid").
 
 ### Step 7: Run it locally
 
 ```bash
 npm run build
 npm link                 # makes `gitwhy` available everywhere on your machine
-export ANTHROPIC_API_KEY=sk-ant-...   # PowerShell: $env:ANTHROPIC_API_KEY="sk-ant-..."
+export GEMINI_API_KEY=...   # PowerShell: $env:GEMINI_API_KEY="..."  (or keep it in .env and run: node --env-file=.env dist/index.js ...)
 cd some-real-repo
 gitwhy src/somefile.ts:42 --dry-run   # check what would be sent first
 gitwhy src/somefile.ts:42
@@ -292,8 +276,8 @@ npm requires two-factor authentication to publish, so set it up on npmjs.com fir
 - [ ] **README** with:
   - a one-line pitch and an animated GIF demo (record with ScreenToGif on Windows, or [vhs](https://github.com/charmbracelet/vhs))
   - install and usage: `npx gitwhy file:line`, plus `--dry-run`
-  - **requirements:** an Anthropic API key, roughly a few cents per run
-  - **privacy note:** the selected code and its git history are sent to Anthropic's API (use `--dry-run` to see exactly what's sent). Developers at companies will check for this.
+  - **requirements:** a free Gemini API key (https://aistudio.google.com/apikey, no credit card)
+  - **privacy note:** the selected code and its git history are sent to Google's Gemini API, and on the free tier Google may use them to improve its products (use `--dry-run` to see exactly what's sent). Developers at companies will check for this.
   - "How it works": the 4-step table from section 2
 - [ ] **GitHub repo** with topics: `git`, `cli`, `ai`, `developer-tools`
 - [ ] **Demo on a famous repo.** Run it on a strange line in React, Express, or the Linux kernel and screenshot the result.
@@ -307,6 +291,7 @@ npm requires two-factor authentication to publish, so set it up on npmjs.com fir
 
 - **Handle uncommitted changes properly.** Instead of refusing, use `git blame --porcelain`, which gives each line's original commit and its line number *in that commit*. Then run `git log -L` starting from that commit.
 - **Pull request context.** Use `gh pr list --search <sha> --state merged` to add PR descriptions and review comments. This is the biggest upgrade to the "why".
-- **`--model` flag** so users can choose a cheaper model.
+- **`--model` flag** so users can pick another Gemini model (e.g. `gemini-3.5-flash-lite` if they hit the free limit).
+- **Local mode with Ollama** for privacy-minded users who already have it installed: code never leaves the machine.
 - **Whole-function mode:** `gitwhy src/a.ts --fn login` using `git log -L :login:src/a.ts`.
 - **VS Code extension:** right-click a line → "Why does this exist?"

@@ -3,19 +3,28 @@
   "version": "0.1.0",
   "description": "Ask why a line of code exists. Reads its git history and explains it in plain English.",
   "type": "module",
-  "bin": { "gitwhy": "dist/index.js" },
-  "files": ["dist"],
+  "bin": {
+    "gitwhy": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "node --test",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["git", "blame", "cli", "ai", "claude"],
-  "engines": { "node": ">=20" },
-  "license": "MIT",
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0"
+  "keywords": [
+    "git",
+    "blame",
+    "cli",
+    "ai",
+    "gemini"
+  ],
+  "engines": {
+    "node": ">=20"
   },
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^26.6.4",
     "typescript": "^7.0.2"
