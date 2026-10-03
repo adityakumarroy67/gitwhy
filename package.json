@@ -28,5 +28,14 @@
   "devDependencies": {
     "@types/node": "^26.6.4",
     "typescript": "^7.0.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adityakumarroy67/gitwhy.git"
+  },
+  "homepage": "https://github.com/adityakumarroy67/gitwhy#readme",
+  "bugs": {
+    "url": "https://github.com/adityakumarroy67/gitwhy/issues"
+  },
+  "author": "adityakumarroy"
 }
