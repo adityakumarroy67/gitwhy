@@ -43,7 +43,7 @@ function git(...args: string[]): string {
   }
 }
 
-// 1. Read the arguments. Unknown flags are errors, so a typo like --dryrun can't spend money.
+// 1. Read the arguments. Unknown flags are errors, so a typo like --dryrun can't send code by accident.
 let args;
 try {
   args = parseArgs({
@@ -150,9 +150,9 @@ let buffer = "";
 let finish = "";
 for await (const text of res.body!.pipeThrough(new TextDecoderStream())) {
   buffer += text;
-  const lines = buffer.split("\n");
-  buffer = lines.pop()!; // the last piece may be cut off mid-line, so keep it for the next round
-  for (const line of lines) {
+  const eventLines = buffer.split("\n");
+  buffer = eventLines.pop()!; // the last piece may be cut off mid-line, so keep it for the next round
+  for (const line of eventLines) {
     if (!line.startsWith("data: ")) continue;
     const event = JSON.parse(line.slice(6));
     const candidate = event.candidates?.[0];
