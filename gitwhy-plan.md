@@ -2,7 +2,7 @@
 
 > Ask why a line of code exists. gitwhy reads the line's git history and explains it in plain English.
 
-**Progress:** Milestones 1–3 done. Milestone 4: README done; publishing as **`gitwhy-ai`** on npm (`gitwhy` is blocked: `git-why` exists, a paid-Claude tool with 3 deps). The command stays `gitwhy`.
+**Progress:** v1 PUBLISHED as **`gitwhy-ai@0.1.0`** on npm (2026-10-04); the command is `gitwhy`. Name `gitwhy` was blocked (`git-why` exists, a paid-Claude tool with 3 deps). npm 11.16 `npx` refuses packages younger than 7 days, so plain `npx gitwhy-ai` works from ~2026-10-11 (before that: `npx --min-release-age=0 gitwhy-ai`). Next: GitHub repo + `repository` field (v0.1.1), demo GIF, LinkedIn.
 **Changed from the original plan:** uses Google's **free Gemini API** instead of paid Claude, so it costs nothing for you or your users. Zero dependencies (Node's built-in `fetch`).
 
 ```
