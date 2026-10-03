@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { parseTarget } from "./parse.ts";
 
@@ -17,7 +18,7 @@ Needs a free Gemini API key in GEMINI_API_KEY: https://aistudio.google.com/apike
 
 const CONTEXT_LINES = 15; // lines of code shown above and below the target
 const MAX_COMMITS = 10; // how far back the history goes
-const MODEL = "gemini-3.8-flash";
+const MODEL = "gemini-3.5-flash-lite"; // gemini-3.8-flash is smarter but often overloaded on the free tier
 const SYSTEM = `You explain why code exists, using its git history.
 Start with a one-sentence answer. Then give a short timeline of the changes that matter:
 short commit SHA, author, date, and what changed and why.
@@ -126,19 +127,25 @@ if (!key) fail("Set GEMINI_API_KEY first. Get a free key at https://aistudio.goo
 
 process.stderr.write("Reading the history...\n");
 let res;
-try {
-  res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`, {
-    method: "POST",
-    // The key goes in a header, not the URL, so it can't leak into logs or error messages.
-    headers: { "content-type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { thinkingConfig: { thinkingLevel: "low" } },
-    }),
-  });
-} catch {
-  fail("Couldn't reach Gemini. Check your internet connection.");
+for (let attempt = 1; ; attempt++) {
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse`, {
+      method: "POST",
+      // The key goes in a header, not the URL, so it can't leak into logs or error messages.
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { thinkingConfig: { thinkingLevel: "low" } },
+      }),
+    });
+  } catch {
+    fail("Couldn't reach Gemini. Check your internet connection.");
+  }
+  // 503 = Gemini is overloaded. Common on the free tier, and it usually passes within seconds.
+  if (res.status !== 503 || attempt === 3) break;
+  process.stderr.write("Gemini is busy, trying again...\n");
+  await sleep(attempt * 2000);
 }
 if (!res.ok) {
   const body = await res.json().catch(() => null);

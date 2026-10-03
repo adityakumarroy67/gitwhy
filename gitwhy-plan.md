@@ -36,7 +36,7 @@ One command, `gitwhy <file>:<line>` or `gitwhy <file>:<start>-<end>`, does the f
 - **Node.js and TypeScript.** You publish to npm, so anyone can run `npx gitwhy file:line` with no install.
   - To **develop** it you need Node **22.18+**, which runs `.ts` test files directly. Node 24 is ideal.
   - The **published** CLI runs on Node 20+.
-- **Google Gemini API** (model `gemini-3.8-flash`), called with Node's built-in `fetch`. No SDK.
+- **Google Gemini API** (model `gemini-3.5-flash-lite`: ~3 s per answer. `gemini-3.8-flash` was smarter but often overloaded on the free tier: 503 errors and 24–40 s answers in Oct 2026 testing), called with Node's built-in `fetch`. No SDK.
 - **Git** must be installed. That's the only system requirement.
 - Zero dependencies. Argument parsing (`parseArgs`), git calls and HTTP all use Node's built-in modules.
 
@@ -236,10 +236,11 @@ The errors this covers for free (all tested):
 
 No SDK, just `fetch` (see the end of `src/index.ts`):
 
-- `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse`
+- `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse`
 - The key goes in the `x-goog-api-key` header, **not the URL**, so it can't leak into logs or error messages.
 - Body: `systemInstruction`, `contents`, and `generationConfig.thinkingConfig.thinkingLevel: "low"` (thinking is on by default, and "low" makes it answer faster).
 - The answer streams back as server-sent events: lines like `data: {...}`. Print each `candidates[0].content.parts[].text` as it arrives. A chunk can end mid-line, so keep the unfinished piece for the next round.
+- A 503 ("high demand") is retried twice, after 2 s and 4 s. It is common on the free tier.
 - `finishReason` other than `STOP` (e.g. `SAFETY`) → say Gemini stopped early.
 - No `GEMINI_API_KEY` → "Set GEMINI_API_KEY first. Get a free key at https://aistudio.google.com/apikey". A bad key → Google's own message ("API key not valid").
 
@@ -291,7 +292,7 @@ npm requires two-factor authentication to publish, so set it up on npmjs.com fir
 
 - **Handle uncommitted changes properly.** Instead of refusing, use `git blame --porcelain`, which gives each line's original commit and its line number *in that commit*. Then run `git log -L` starting from that commit.
 - **Pull request context.** Use `gh pr list --search <sha> --state merged` to add PR descriptions and review comments. This is the biggest upgrade to the "why".
-- **`--model` flag** so users can pick another Gemini model (e.g. `gemini-3.5-flash-lite` if they hit the free limit).
+- **`--model` flag** so users can pick another Gemini model (e.g. `gemini-3.8-flash` for smarter answers when it isn't overloaded).
 - **Local mode with Ollama** for privacy-minded users who already have it installed: code never leaves the machine.
 - **Whole-function mode:** `gitwhy src/a.ts --fn login` using `git log -L :login:src/a.ts`.
 - **VS Code extension:** right-click a line → "Why does this exist?"
