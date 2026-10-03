@@ -3,7 +3,7 @@
 Ask why a line of code exists. gitwhy reads the line's git history and explains it in plain English. Free to use.
 
 ```
-$ npx gitwhy lib/response.js:163
+$ npx gitwhy-ai lib/response.js:163
 
 This line exists to check whether an ETag needs to be created, so Express can
 avoid converting small string bodies into Buffers when no ETag is required.
@@ -45,12 +45,12 @@ You need **Node.js 20+**, **git**, and a **free Gemini API key**.
 Run it from inside the git repo the file belongs to:
 
 ```bash
-npx gitwhy <file>:<line>              # one line
-npx gitwhy <file>:<start>-<end>       # a range of lines
-npx gitwhy <file>:<line> --dry-run    # show what would be sent, send nothing
+npx gitwhy-ai <file>:<line>              # one line
+npx gitwhy-ai <file>:<start>-<end>       # a range of lines
+npx gitwhy-ai <file>:<line> --dry-run    # show what would be sent, send nothing
 ```
 
-Or install it once with `npm install -g gitwhy` and run `gitwhy src/auth.ts:42`.
+Or install it once with `npm install -g gitwhy-ai` and run `gitwhy src/auth.ts:42`.
 
 ## How it works
 

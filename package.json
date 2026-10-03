@@ -1,5 +1,5 @@
 {
-  "name": "gitwhy",
+  "name": "gitwhy-ai",
   "version": "0.1.0",
   "description": "Ask why a line of code exists. Reads its git history and explains it in plain English.",
   "type": "module",

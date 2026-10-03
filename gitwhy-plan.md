@@ -2,7 +2,7 @@
 
 > Ask why a line of code exists. gitwhy reads the line's git history and explains it in plain English.
 
-**Progress:** Milestones 1, 2 and 3 done (tested on expressjs/express: answers in 4–8 s). Next: Milestone 4 (README, publish).
+**Progress:** Milestones 1–3 done. Milestone 4: README done; publishing as **`gitwhy-ai`** on npm (`gitwhy` is blocked: `git-why` exists, a paid-Claude tool with 3 deps). The command stays `gitwhy`.
 **Changed from the original plan:** uses Google's **free Gemini API** instead of paid Claude, so it costs nothing for you or your users. Zero dependencies (Node's built-in `fetch`).
 
 ```
