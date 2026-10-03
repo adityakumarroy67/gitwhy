@@ -2,7 +2,7 @@
 
 > Ask why a line of code exists. gitwhy reads the line's git history and explains it in plain English.
 
-**Progress:** v1 PUBLISHED as **`gitwhy-ai@0.1.0`** on npm (2026-10-04); the command is `gitwhy`. Name `gitwhy` was blocked (`git-why` exists, a paid-Claude tool with 3 deps). npm 11.16 `npx` refuses packages younger than 7 days, so plain `npx gitwhy-ai` works from ~2026-10-11 (before that: `npx --min-release-age=0 gitwhy-ai`). Next: GitHub repo + `repository` field (v0.1.1), demo GIF, LinkedIn.
+**Progress:** v1 PUBLISHED as **`gitwhy-ai@0.1.0`** on npm (2026-10-04); the command is `gitwhy`. Name `gitwhy` was blocked (`git-why` exists, a paid-Claude tool with 3 deps). npm 11.16 `npx` refuses packages younger than 7 days, so plain `npx gitwhy-ai` works from ~2026-10-11 (before that: `npx --min-release-age=0 gitwhy-ai`). v0.1.1 published with GitHub links; repo: https://github.com/adityakumarroy67/gitwhy. NEXT: step 3 = record demo.gif with ScreenToGif (on expressjs/express, lib/response.js:160-170), add it to README; step 4 = LinkedIn post. Also: rotate the Gemini key (it was pasted in a chat).
 **Changed from the original plan:** uses Google's **free Gemini API** instead of paid Claude, so it costs nothing for you or your users. Zero dependencies (Node's built-in `fetch`).
 
 ```
