@@ -2,6 +2,8 @@
 
 Ask why a line of code exists. gitwhy reads the line's git history and explains it in plain English. Free to use.
 
+![gitwhy explaining a range of lines in Express](demo.gif)
+
 ```
 $ npx gitwhy-ai lib/response.js:163
 
